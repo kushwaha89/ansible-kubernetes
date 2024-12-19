@@ -50,10 +50,8 @@ https://github.com/kushwaha89/ansible-kubernetes.git
 cd ansible-kubernetes
 ```
 
-### 2. Update Variables
-Modify `group_vars/all.yml` to customize variables, such as Kubernetes version and network plugin settings.
 
-### 3. Run the Playbook
+### Run the Playbook
 Execute the playbook to set up the Kubernetes cluster:
 ```bash
 ansible-playbook -i inventory.ini k8s-cluster.yaml
