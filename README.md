@@ -1,6 +1,6 @@
 # Ansible Kubernetes
 
-An Ansible playbook designed to automate the deployment of a Kubernetes cluster, featuring a single master node and multiple worker nodes. It is highly scalable, allowing you to specify and add as many worker nodes as required in the inventory file. Deployment can be completed within 5-7 minutes for a basic setup with one master and worker node.
+An Ansible playbook designed to automate the deployment of a Kubernetes cluster, featuring a single master node and multiple worker nodes. It is highly scalable, allowing you to specify and add as many worker nodes as required in the inventory file. Deployment can be completed within 5-7 minutes for a basic setup with one master and one worker
 
 ---
 
@@ -23,7 +23,7 @@ An Ansible playbook designed to automate the deployment of a Kubernetes cluster,
 
 ## Prerequisites
 
-1. **Supported(Verified) OS**: Ubuntu 22.04. However, It should work on later version of Ubuntu
+1. **Supported OS**: Ubuntu 22.04 or later.
 2. **Ansible**: Ensure Ansible is installed on the control node.
 3. **Access**: Passwordless SSH access to all target nodes (master and workers).
 4. **Internet Connectivity**: Required for downloading necessary packages and Kubernetes components.
@@ -36,22 +36,25 @@ Update the `inventory.ini` file to define the master and worker nodes:
 
 ```ini
 [master-nodes]
-master-node1 ansible_host=192.168.122.151  # Replace with your master node IP or hostname
+master-node1 ansible_host=<master-node-IP> ansible_user=<user>
 
 [worker-nodes]
-worker-node1 ansible_host=192.168.122.217 # Replace with your worker node IP or hostname
+worker-node1 ansible_host=<worker-node-IP> ansible_user=<user>
+worker-node2 ansible_host=<worker-node-IP> ansible_user=<user>  # Add more workers as needed
 
+```
+
+---
 
 ## Usage
 
 ### 1. Clone the Repository
 ```bash
-https://github.com/kushwaha89/ansible-kubernetes.git
+git clone https://github.com/kushwaha89/ansible-kubernetes.git
 cd ansible-kubernetes
 ```
 
-
-### Run the Playbook
+### 2. Run the Playbook
 Execute the playbook to set up the Kubernetes cluster:
 ```bash
 ansible-playbook -i inventory.ini k8s-cluster.yaml
@@ -85,7 +88,6 @@ Expected output:
 NAME             STATUS   ROLES           AGE   VERSION
 master-node1     Ready    control-plane   10m   v1.32.x
 worker-node1     Ready    <none>          5m    v1.32.x
-worker-node2     Ready    <none>          5m    v1.32.x
 ```
 
 ---
@@ -99,10 +101,9 @@ worker-node2     Ready    <none>          5m    v1.32.x
 ### Change Network Plugin
 To use a different network plugin, update the plugin manifest URL in the playbook:
 ```yaml
- - name: Apply Calico networking plugin
-   shell: |
-     kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
-
+- name: Apply Calico networking plugin
+  shell: |
+    kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
 ```
 
 ---
