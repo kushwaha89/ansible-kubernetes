@@ -1,6 +1,6 @@
 # Ansible Kubernetes
 
-Ansible playbook to automate the deployment of a Kubernetes cluster with one master node and multiple worker nodes. The playbook is designed to be scalable, allowing you to add as many worker nodes as needed in the inventory file.
+An Ansible playbook designed to automate the deployment of a Kubernetes cluster, featuring a single master node and multiple worker nodes. It is highly scalable, allowing you to specify and add as many worker nodes as required in the inventory file. Deployment can be completed within 5-7 minutes for a basic setup with one master and worker node.
 
 ---
 
