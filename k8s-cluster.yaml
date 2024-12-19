@@ -1,0 +1,143 @@
+---
+- name: Kubernetes Cluster Installation
+  hosts: all
+  become: yes
+  tasks:
+    - name: Disable Swap
+      shell: |
+        swapoff -a
+        sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+    - name: Add kernel parameters
+      copy:
+        content: |
+          overlay
+          br_netfilter
+        dest: /etc/modules-load.d/containerd.conf
+
+    - name: Load kernel modules
+      shell: |
+        modprobe overlay
+        modprobe br_netfilter
+
+    - name: Add sysctl parameters for Kubernetes
+      copy:
+        content: |
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.bridge.bridge-nf-call-iptables = 1
+          net.ipv4.ip_forward = 1
+        dest: /etc/sysctl.d/kubernetes.conf
+
+    - name: Reload sysctl parameters
+      command: sysctl --system
+
+    - name: Install prerequisites for Containerd
+      apt:
+        name:
+          - curl
+          - gnupg2
+          - software-properties-common
+          - apt-transport-https
+          - ca-certificates
+        state: present
+
+    - name: Add Docker GPG key
+      shell: |
+        rm -rf /etc/apt/trusted.gpg.d/docker.gpg
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/docker.gpg
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+
+    - name: Install Containerd
+      apt:
+        name: containerd.io
+        state: present
+
+    - name: Configure Containerd
+      shell: |
+        containerd config default | tee /etc/containerd/config.toml >/dev/null
+        sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+
+    - name: Restart and enable Containerd service
+      systemd:
+        name: containerd
+        state: started
+        enabled: yes
+
+    - name: Add Kubernetes signing key
+      shell: |
+        rm -rf /etc/apt/keyrings
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: Add Kubernetes apt repository
+      shell: |
+        echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Kubernetes components
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        allow_unauthenticated: yes
+
+  #- name: Hold Kubernetes packages
+  #    shell: |
+  #      kubeadm reset -f
+  #      apt-mark hold kubelet kubeadm kubectl
+
+- name: Initialize Kubernetes on Master Node
+  hosts: master-nodes
+  become: yes
+  tasks:
+    - name: Initialize Kubernetes Cluster
+      shell: |
+        kubeadm reset -f
+        kubeadm config images pull
+        kubeadm init --control-plane-endpoint=master-node1  
+      register: init_output
+    - name: Set kubeconfig environment for kubectl
+      shell: |
+        rm -rf $HOME/.kube/config
+        mkdir -p $HOME/.kube
+        cp -f /etc/kubernetes/admin.conf $HOME/.kube/config
+        chown $(id -u):$(id -g) $HOME/.kube/config
+      environment:
+        HOME: /root
+    - name: Extract join command
+      shell: |
+        kubeadm token create  --print-join-command > /tmp/join_command.sh
+
+    - name: Apply Calico networking plugin
+      shell: |
+        kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+      environment:
+        KUBECONFIG: /root/.kube/config
+    - name: Fetch join command script
+      fetch:
+        src: /tmp/join_command.sh
+        dest: /tmp/join_command.sh
+        flat: yes
+
+
+- name: Join Worker Nodes to Cluster
+  hosts: worker-nodes
+  become: yes
+  tasks:
+    - name: Copy join command script to worker node
+      copy:
+        src: /tmp/join_command.sh
+        dest: /tmp/join_command.sh
+        mode: '0777'
+    - name: Join the Kubernetes cluster
+      shell: |
+        kubeadm reset -f
+        /bin/bash /tmp/join_command.sh      
